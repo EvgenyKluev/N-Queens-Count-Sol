@@ -20,7 +20,7 @@ Best place to start reading the sources is quadrants1.h
 
 To compile main program, either use cmake or employ compiler directly:
 ```
-gcc -std=c++20 -O3 main.cpp
+g++ -std=c++20 -O3 main.cpp
 ```
 
 Right now (oct 2022) only GCC works properly.
@@ -38,7 +38,7 @@ nqueens 2 4 3
 Other configuration parameters (including the board size) should be set inside the sources. They are initially set to some conservative values. CPU instruction set
 may be configured in CMakeLists.txt or in compiler command line:
 ```
-gcc -std=c++20 -march=haswell -mtune=haswell -O3 main.cpp
+g++ -std=c++20 -march=haswell -mtune=haswell -O3 main.cpp
 ```
 
 To allow prefetch instruction, edit prefetch.h. To allow BMI2 instructions, edit bmintrin.h. Board size and many performance tuning parameters are in solcounter.h.
