@@ -50,7 +50,7 @@ public:
 
     static constexpr bool internalSymmetry()
     {
-        return false;
+        return true;
     }
 
     static constexpr bool diagSymmetry()

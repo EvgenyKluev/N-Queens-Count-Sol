@@ -10,9 +10,9 @@ Here are the results I've got on 2013's 4-core CPU:
 
 | Size | Time |
 |-----:|-----:|
-|  20  | 2m53s|
-|  21  |28m12s|
-|  22  | 3h51m|
+|  20  | 2m15s|
+|  21  |20m23s|
+|  22  | 3h20m|
 
 ## Quick start
 

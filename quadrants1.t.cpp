@@ -1,4 +1,4 @@
-/* Test Quadrants1's diagonal symmetries and control flow (start with getting
+/* Test Quadrants1's symmetries and control flow (start with getting
  * stream of diagonals from FakeQuarter and follow execution path until
  * feeding diagonals to MockSieve). As Quadrants1's only function is counting
  * n-queens solutions (and this is already tested in main application),
@@ -180,6 +180,8 @@ protected:
     {
         f.ptr = &env.sink;
 
+        ON_CALL(env.start, getFreeRows)
+                .WillByDefault(t::Return(0xFF));
         EXPECT_CALL(env.start, getBitComb())
                 .WillOnce(t::Return(bitComb));
         EXPECT_CALL(env.start, matchDiagsE)
@@ -205,8 +207,8 @@ protected:
 
     D4 westD {{0, 8}, {8, 0}};
     std::vector<D4> eastD {
+        {{1, 0}, {16, 0}},// rejected by matchDiags
         {{1, 0}, {16, 0}},// rejected by matchQuarters
-        {{0, 0}, {0, 0}}, // rejected by matchDiags
         {{0, 0}, {0, 8}}, // rejected by bothDiagsEmpty
         {{8, 0}, {0, 0}}, // rejected by bothDiagsEmpty
         {{8, 0}, {0, 8}}, // rejected by bothDiagsEmpty
@@ -240,13 +242,26 @@ TEST_F(Quadrants1Test, DiagsSymmetry2B)
     EXPECT_EQ(quadrants(env), 2u);
 }
 
-TEST_F(Quadrants1Test, DiagsSymmetry1)
+TEST_F(Quadrants1Test, DiagsSymmetry1ButEastWest2)
 {
     EXPECT_CALL(env.sink, appendPattern)
             .Times(1);
+    ON_CALL(env.start, stretchRows)
+            .WillByDefault(t::Return(0xFF));
 
     westD = {{0, 0}, {0, 0}};
-    EXPECT_EQ(quadrants(env), 1u);
+    EXPECT_EQ(quadrants(env), 2u);
+}
+
+TEST_F(Quadrants1Test, DiagsSymmetry1ButNorthSouth2)
+{
+    EXPECT_CALL(env.sink, appendPattern)
+            .Times(1);
+    ON_CALL(env.start, stretchRows)
+            .WillByDefault(t::Return(0x0F));
+
+    westD = {{0, 0}, {0, 0}};
+    EXPECT_EQ(quadrants(env), 2u);
 }
 
 TEST_F(Quadrants1Test, DiagsSymmetry0)

@@ -54,11 +54,12 @@ struct Context
  * are handled as said above.
  *
  * Most (but not all) relatively symmetrical cases are computed only once,
- * which gives 8x speedup (but does not give the number of unique solutions).
- * For odd board sizes this is obtained by middle row/column placement.
- * For even sizes we choose unique row combinations (for one symmetry) and
- * then filter out redundant half-solutions based on longest diagonals
- * occupation (for other two symmetries).
+ * which gives almost 8x speedup (but does not give the number of unique
+ * solutions). For odd board sizes this is obtained by middle row/column
+ * placement. For even sizes we choose unique row combinations
+ * (for north-south symmetry) and then try one of the following: filter out
+ * redundant half-solutions based on longest diagonals occupation
+ * (for other two symmetries) or use east-west symmetry.
  *
  * Main entry point (operator()) could be entered by several threads at once.
  * Then small part of work is duplicated by all threads until
@@ -115,6 +116,13 @@ public:
     }
 
 private:
+    struct Symm
+    {
+        unsigned prim;
+        unsigned sec;
+        explicit operator bool () const { return prim; }
+    };
+
     /* For each row, set queen to east/west side of the board, then process
      * east/west halfboards and update number of solutions accordingly.
      */
@@ -128,11 +136,11 @@ private:
             const uint32_t eastRows = env.start.stretchRows(bits);
             const uint32_t westRows = eastRows ^ env.start.getFreeRows();
 
-            if (unsigned m = getRowsSymm(env, eastRows))
+            if (Symm m = getRowsSymm(env, eastRows))
             {
                 env.sync(); fill(env, eastRows);
                 env.sync(); env.freeze->freeze(env.thread);
-                env.sync(); counter += m * count(env, westRows);
+                env.sync(); counter += m.prim * count(env, westRows, m.sec);
                 env.sync(); if (env.thread->accepted()) env.freeze->clear();
             }
         }
@@ -141,42 +149,54 @@ private:
     }
 
     /* Try to avoid double work if we already counted solutions for the board
-     * turned upside down.
+     * flipped upside down (north <-> south). And check if we could flip it
+     * left to right (east <-> west) just in case. Use left to right symmetry
+     * immediately for "queen in the center" case.
      */
-    static unsigned getRowsSymm(auto& env, uint32_t eastRows)
+    static Symm getRowsSymm(auto& env, uint32_t eastRows)
     {
+        if (!env.start.internalSymmetry())
+            return {1, 1};
+
         const uint32_t revRows = revBits<size, halfSize>(eastRows);
+        const uint32_t eqRows = ~(eastRows ^ revRows) & env.start.getFreeRows();
+        const uint32_t eqBit = eqRows & -eqRows;
 
-        if (!env.start.internalSymmetry() || eastRows == revRows)
-            return 1;
+        const unsigned eastWest = eqRows
+                ? ((eastRows & eqBit)
+                   ? 2
+                   : 0)
+                : 1;
 
-        if (eastRows < revRows)
-            return 2;
+        const unsigned northSouth = (eastRows != revRows)
+                ? ((eastRows < revRows)
+                   ? 2
+                   : 0)
+                : 1;
 
-        return 0;
+        if (env.start.diagSymmetry())
+            return {northSouth, eastWest};
+        else // queen in the center
+            return {northSouth * eastWest, 1};
     }
 
     // Process east half-board and store results
     void fill(auto& env, uint32_t eastRows) const
     {
         doHalf<false>(env, eastRows, [&, this](const auto& d) {
-            if (env.start.diagSymmetry() && !bothDiagsEmpty(d))
-                return;
-            const auto halfDiags = joinQuarters<halfCeil, 0>(d);
-            env.sink.appendPattern(halfDiags);
+            if (!env.start.diagSymmetry() || bothDiagsEmpty(d))
+                env.sink.appendPattern(joinQuarters<halfCeil, 0>(d));
         });
     }
 
     // Process west half-board and count matchings with east side
-    uint64_t count(auto& env, uint32_t westRows) const
+    uint64_t count(auto& env, uint32_t westRows, unsigned symm) const
     {
         uint64_t total = 0;
         doHalf<true>(env, westRows, [&, this](const auto& d) {
-            const unsigned m = diagsSymmetryFactor(env, d);
-            const auto& halfDiags = joinQuarters<0, halfCeil>(d);
-            total += m * env.counter().count(halfDiags);
+            if (unsigned m = diagsSymmetryFactor(env, d, symm))
+                total += m * env.counter().count(joinQuarters<0, halfCeil>(d));
         });
-
         return total;
     }
 
@@ -196,27 +216,42 @@ private:
                 return;
 
             const auto sColumns = (northCell.columns ^ ~halfColumns) & lowHalf;
-            const auto northCellInd = north.makeCellInd(northCell);
-            const auto southCellInd = south.makeCellInd(sColumns);
+            const auto northInd = north.makeCellInd(northCell);
+            const auto southInd = south.makeCellInd(sColumns);
 
-            static constexpr bool filterDiag =
-                  (env.start.diagSymmetry() && !west) || env.start.filterDiag();
-
-            quarter_.template forDiags<filterDiag, west>(
-                        northCellInd, southCellInd, [&](const auto& d) {
-                if (!matchQuarters(d))
-                    return;
-                if (!env.start.template matchDiags<west? halfCeil: 0>(d))
-                    return;
-                action(d);
+            forDiags<west>(env, northInd, southInd, [&](const auto& d) {
+                if (matchDiags<west>(env, d) && matchQuarters(d))
+                    action(d);
             });
         });
     }
 
+    template<bool west>
+    void forDiags(auto& env,
+                  const auto northInd,
+                  const auto southInd,
+                  const auto& action) const
+    {
+        static constexpr bool filter =
+              (env.start.diagSymmetry() && !west) || env.start.filterDiag();
+
+        quarter_.template forDiags<filter, west>(northInd, southInd, action);
+    }
+
+    template<bool west>
+    static bool matchDiags(auto& env, const auto& diags)
+    {
+        return env.start.template matchDiags<west? halfCeil: 0>(diags);
+    }
+
     /* Uses longest diagonals occupation to determine how many relatively
-     * symmetrical solutions we have got.
+     * symmetrical solutions we have got. If both diagonals are empty try
+     * to use east-west reflection.
      */
-    static unsigned diagsSymmetryFactor(auto& env, const auto& diags)
+    static unsigned diagsSymmetryFactor(
+                auto& env,
+                const auto& diags,
+                unsigned symm)
     {
         unsigned symmetryFactor = 1;
 
@@ -227,6 +262,9 @@ private:
 
             if (!isLongestHalfDiagEmpty(diags.second[0]))
                 symmetryFactor *= 2;
+
+            if (symmetryFactor == 1)
+                symmetryFactor = symm;
         }
 
         return symmetryFactor;
