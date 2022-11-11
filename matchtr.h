@@ -120,7 +120,7 @@ private:
     static constexpr int numChunks_ = (size + chunkSize_ - 1) / chunkSize_;
     static constexpr int trChunkSize_ = (chunkSize_ == 1) ? 1: 1 << chunkSize_;
 
-    using Group = std::array<uint64_t, groupSize_>;
+    struct alignas(cfg.align) Group: public std::array<uint64_t, groupSize_> {};
     using Chunk = std::array<Group, trChunkSize_>;
     using Piece = std::array<Chunk, numChunks_>;
     using PieceVec = std::vector<Piece>;

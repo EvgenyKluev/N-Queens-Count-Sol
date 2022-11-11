@@ -8,6 +8,7 @@ struct Cfg
     int matchChunkSize = 5;
     int matchGroupSize = 8;
     int matchMinSize = 40;
+    int align = 32;
     bool bmiIntrin = false;
     bool prefetch = false;
 };
