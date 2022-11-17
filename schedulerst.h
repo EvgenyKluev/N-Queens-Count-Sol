@@ -20,7 +20,7 @@ class ThreadST;
 
 struct SchedulerST
 {
-    SchedulerST(std::ptrdiff_t)
+    explicit SchedulerST(std::ptrdiff_t)
     {}
 
     uint64_t launch(const auto& fn);

@@ -24,7 +24,7 @@ struct ThreadPolicyMT
 class SchedulerMT
 {
 public:
-    SchedulerMT(std::ptrdiff_t workerCount)
+    explicit SchedulerMT(std::ptrdiff_t workerCount)
         : workerCount_{workerCount}
         , barrier_(workerCount)
     {}
@@ -64,7 +64,7 @@ public:
     }
 
 private:
-    ThreadMT(SchedulerMT* scheduler)
+    explicit ThreadMT(SchedulerMT* scheduler)
         : scheduler_{scheduler}
     {}
 
@@ -86,7 +86,7 @@ uint64_t SchedulerMT::launch(const auto& fn)
     };
 
     for (auto& slot: fut)
-        slot = async(std::launch::async, launcher);
+        slot = std::async(std::launch::async, launcher);
 
     for (auto& slot: fut)
         total += slot.get();

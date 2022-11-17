@@ -183,7 +183,7 @@ private:
     }
 
     // Recursively place queens to get all partial solutions
-    static void placeQueens(const Board<size> board,
+    static void placeQueens(const Board<size>& board,
                             const unsigned row,
                             Unsorted& sink)
     {
